@@ -1,9 +1,8 @@
-// Nextflow config file for Slurm cluster - with fixed queue names
-// This version includes the option to run locally for testing
+// Nextflow config file for Slurm cluster
+// Save this as nextflow.config in your pipeline directory
 
 // Process defaults
 process {
-    // Use Slurm executor by default
     executor = 'slurm'
     
     // Default resources
@@ -11,56 +10,68 @@ process {
     memory = '4 GB'
     time = '1h'
     
+    // Queue selection based on job duration
+    queue = { task.time <= 1.h ? 'genoa2' : task.time <= 8.h ? 'genoa2' : 'genoa2' }
+    
+    // Output handling
+    scratch = true  // Use local scratch space
+    clusterOptions = '--exclusive=user'  // Prevent other users from using the node
+    
     // Process-specific configs
     withName: 'shortCpuBursts' {
         cpus = 1
         memory = '1 GB'
         time = '15m'
+        queue = 'short'
     }
     
     withName: 'memoryIntensiveJobs' {
         cpus = 1
         memory = { 4.GB * task.attempt }
         time = '30m'
+        queue = 'highmem'
     }
     
     withName: 'cpuIntensiveJobs' {
         cpus = { Math.min(16, 2 * task.attempt) }
         memory = '4 GB'
         time = '2h'
+        queue = 'highcpu'
     }
     
     withName: 'ioIntensiveJobs' {
         cpus = 2
         memory = '4 GB'
         time = '1h'
+        queue = 'io'
     }
     
     withName: 'mixedResourceJobs' {
         cpus = { 2 * task.attempt }
         memory = { 2.GB * task.attempt }
         time = '1h'
+        queue = 'medium'
     }
     
     withName: 'aggregationJob' {
         cpus = 1
         memory = '2 GB'
         time = '30m'
+        queue = 'short'
         errorStrategy = 'retry'
         maxRetries = 3
     }
 }
 
-// Executor settings for Slurm
+// Executor settings
 executor {
-    $slurm {
-        queueSize = 50            // Maximum number of jobs submitted at once
-        submitRateLimit = '10/1s'  // Maximum submission rate (10 jobs per second)
-        jobName = { "stress_${task.process.tokenize(':')[-1]}_${task.index}" }
-        pollInterval = '15 sec'    // How often to check job status
-        queueStatInterval = '5min' // How often to refresh queue status
-        exitReadTimeout = '10min'  // How long to wait for files to be accessed after job completion
-    }
+    name = 'slurm'
+    queueSize = 100           // Maximum number of jobs submitted at once
+    submitRateLimit = '10/1s'  // Maximum submission rate (10 jobs per second)
+    jobName = { "stress_${task.process.tokenize(':')[-1]}_${task.index}" }
+    pollInterval = '15 sec'   // How often to check job status
+    queueStatInterval = '5min' // How often to refresh queue status
+    exitReadTimeout = '10min'  // How long to wait for files to be accessed after job completion
 }
 
 // Nextflow run settings
@@ -88,7 +99,6 @@ params {
 report {
     enabled = true
     file = "${params.output_dir}/reports/execution_report.html"
-    overwrite = true
 }
 
 // Trace file for detailed metrics
@@ -113,9 +123,15 @@ dag {
     overwrite = true
 }
 
+// Advanced settings
+singularity {
+    enabled = false  // Enable if using Singularity containers
+    autoMounts = true
+}
+
 // Profiles for different execution environments
 profiles {
-    // Main profile for full stress test using Slurm
+    // Main profile for full stress test
     full {
         params.num_samples = 200
         params.short_jobs = 100
@@ -123,49 +139,13 @@ profiles {
         params.long_jobs = 40
     }
     
-    // For testing with local executor (not using Slurm)
+    // Quick test profile
     test {
-        process.executor = 'local'
-        
         params.num_samples = 10
-        params.short_jobs = 2
-        params.medium_jobs = 1
-        params.long_jobs = 1
-        params.failure_rate = 0.05
-        
-        // Reduce resource requirements for local execution
-        process {
-            cpus = 1
-            memory = '1 GB'
-            
-            withName: 'shortCpuBursts' {
-                memory = '500 MB'
-            }
-            
-            withName: 'memoryIntensiveJobs' {
-                memory = { 1.GB * task.attempt }
-            }
-            
-            withName: 'cpuIntensiveJobs' {
-                cpus = 1
-                memory = '1 GB'
-            }
-            
-            withName: 'ioIntensiveJobs' {
-                memory = '1 GB'
-            }
-        }
-    }
-    
-    // Slurm profile with proper configuration for NeSI (or your specific cluster)
-    slurm {
-        process.executor = 'slurm'
-        
-        // Set appropriate partition/queue names for your Slurm cluster
-        process.queue = 'genoa2'  // Default queue/partition name - change this to your default partition
-        
-        // Set any specific Slurm cluster options here
-        process.clusterOptions = '--account=nesi99999'  // Change to your account
+        params.short_jobs = 5
+        params.medium_jobs = 3
+        params.long_jobs = 2
+        params.failure_rate = 0.1
     }
     
     // Memory-intensive profile
@@ -202,4 +182,10 @@ profiles {
         params.medium_jobs = 30
         params.long_jobs = 10
     }
+}
+
+// Run with increased parallelism
+env {
+    NXF_OPTS = '-Xms1g -Xmx4g'
+    // Add environment variables that might be needed
 }
