@@ -43,12 +43,8 @@ Output directory      : ${params.output_dir}
 =======================================================
 """
 
-// Create input channels with sample IDs for each process
-// This is the key fix - create separate channels for each process
-short_samples = Channel.of(1..params.short_jobs)
-memory_samples = Channel.of(1..params.medium_jobs)
-cpu_samples = Channel.of(1..params.long_jobs)
-io_samples = Channel.of(1..params.medium_jobs)
+// Create input channel with sample IDs
+input_samples = Channel.of(1..params.num_samples)
 
 // Process 1: Short CPU bursts (many quick jobs to test scheduler overhead)
 process shortCpuBursts {
@@ -62,7 +58,7 @@ process shortCpuBursts {
     def fail_randomly = Math.random() < params.failure_rate ? "exit 1" : ""
     
     input:
-    val sample_id from short_samples
+    val sample_id from input_samples.take(params.short_jobs)
     
     output:
     val sample_id into short_jobs_done
@@ -101,7 +97,7 @@ process memoryIntensiveJobs {
     params.mem_intensive
     
     input:
-    val sample_id from memory_samples
+    val sample_id from input_samples.take(params.medium_jobs)
     
     output:
     val sample_id into memory_jobs_done
@@ -131,7 +127,7 @@ import time
 import random
 
 # Allocate large array
-size_kb = int(\${USE_KB} * 0.9)  # Leave some headroom
+size_kb = int($USE_KB * 0.9)  # Leave some headroom
 arr = np.ones((size_kb * 1024 // 8), dtype=np.float64)  # 8 bytes per float64
 
 # Keep the memory allocated for some time
@@ -167,7 +163,7 @@ process cpuIntensiveJobs {
     params.cpu_intensive
     
     input:
-    val sample_id from cpu_samples
+    val sample_id from input_samples.take(params.long_jobs)
     
     output:
     val sample_id into cpu_jobs_done
@@ -224,7 +220,7 @@ process ioIntensiveJobs {
     params.io_intensive
     
     input:
-    val sample_id from io_samples
+    val sample_id from input_samples.take(params.medium_jobs)
     
     output:
     file "io_test_${sample_id}.txt" optional true
