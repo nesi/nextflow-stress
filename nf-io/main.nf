@@ -74,7 +74,7 @@ process readStressTest {
     
     // Slurm executor config - NeSI specific
     executor 'slurm'
-    clusterOptions '--account=nesi99999 --partition=milan --time=01:00:00'
+    clusterOptions '--account=nesi99999 --partition=genoa2 --time=01:00:00'
     cpus 1
     memory '2 GB'
     
@@ -121,7 +121,7 @@ process cleanup {
     
     // Slurm executor config - NeSI specific
     executor 'slurm'
-    clusterOptions '--account=nesi99999 --partition=milan --time=00:10:00'
+    clusterOptions '--account=nesi99999 --partition=genoa2 --time=00:10:00'
     cpus 1
     
     input:
