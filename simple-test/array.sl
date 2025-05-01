@@ -3,7 +3,7 @@
 #SBATCH --time=5:00
 #SBATCH --mem=500M
 #SBATCH --cpus-per-task=1
-
+#SBATCH --output=slog/%j.out
 
 module purge
 
